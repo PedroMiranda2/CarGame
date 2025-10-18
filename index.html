@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>🏎️ Corrida Insana</title>
+<style>
+body {
+  background: #111;
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 0; 
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  margin: 20px auto;
+  border: 3px solid #fff;
+  border-radius: 10px;
+}
+button {
+  background: #ff4747;
+  border: none;
+  color: white;
+  font-size: 1.2em;
+  font-weight: bold;
+  padding: 12px 30px;
+  margin: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover { background: #ff7070; transform: scale(1.05); }
+</style>
+</head>
+<body>
+<h1>🏁 Corrida Insana 🏁</h1>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<div id="menu">
+  <button id="startBtn">Jogar</button>
+  <button id="restartBtn" style="display:none;">Jogar Novamente</button>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let jogoAtivo = false;
+let carro, obstaculos, velocidade, pontuacao;
+
+// Sons
+const somMotor = new Audio("audio/motor.mp3");
+somMotor.loop = true;
+
+const somJogar = new Audio("audio/jogar.mp3"); 
+const somPassar = new Audio("audio/passar.mp3");
+
+// Imagens
+const imgCarro = new Image();
+imgCarro.src = "img/carro.png";
+const imgObstaculo = new Image();
+imgObstaculo.src = "img/obstaculo.png";
+const imgFundo = new Image();
+imgFundo.src = "img/fundo.png";
+
+// Carregamento
+let imagensCarregadas = 0;
+const totalImagens = 3;
+[imgCarro, imgObstaculo, imgFundo].forEach(img => {
+  img.onload = () => {
+    imagensCarregadas++;
+    if(imagensCarregadas === totalImagens) console.log("✅ Imagens carregadas!");
+  }
+});
+
+// Fundo rolando verticalmente
+let yFundo1 = 0;
+let yFundo2 = -canvas.height;
+const repsX = 2;
+
+// Definição das 4 faixas
+const faixaLargura = canvas.width / 4;
+const faixas = [
+  faixaLargura*0 + faixaLargura/2 - 50,
+  faixaLargura*1 + faixaLargura/2 - 50,
+  faixaLargura*2 + faixaLargura/2 - 50,
+  faixaLargura*3 + faixaLargura/2 - 50
+];
+
+function iniciarJogo() {
+  if (imagensCarregadas < totalImagens) {
+    alert("As imagens ainda estão carregando!");
+    return;
+  }
+
+  somJogar.currentTime = 0;
+  somJogar.play();
+
+  document.getElementById("startBtn").disabled = true;
+
+  setTimeout(() => {
+    jogoAtivo = true;
+    pontuacao = 0;
+    velocidade = 5;
+    obstaculos = [];
+    // Carro 
+    carro = { x: faixas[1], y: canvas.height - 230, largura: 210, altura: 130, velocidadeX: 0 };
+
+    yFundo1 = 0;
+    yFundo2 = -canvas.height;
+
+    document.getElementById("startBtn").style.display = "none";
+    document.getElementById("restartBtn").style.display = "none";
+
+    somMotor.currentTime = 0;
+    somMotor.play();
+
+    loop();
+  }, 3000);
+}
+
+function gerarObstaculo() {
+  const faixaIndex = Math.floor(Math.random() * faixas.length);
+  const x = faixas[faixaIndex];
+
+  for (let o of obstaculos) {
+    if (o.x === x && o.y < 150) return;
+  }
+
+  // Obstáculo padrão
+  obstaculos.push({ x: x, y: -120, largura:120, altura:120, passou:false });
+}
+
+function loop() {
+  if(!jogoAtivo) return;
+
+  yFundo1 += velocidade;
+  yFundo2 += velocidade;
+  if(yFundo1 >= canvas.height) yFundo1 = yFundo2 - canvas.height;
+  if(yFundo2 >= canvas.height) yFundo2 = yFundo1 - canvas.height;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const larguraFundo = canvas.width / repsX;
+  [yFundo1, yFundo2].forEach(y => {
+    for(let i = 0; i < repsX; i++){
+      ctx.drawImage(imgFundo, i * larguraFundo, y, larguraFundo, canvas.height);
+    }
+  });
+
+  carro.x += carro.velocidadeX;
+  if(carro.x < 0) carro.x = 0;
+  if(carro.x > canvas.width - carro.largura) carro.x = canvas.width - carro.largura;
+
+  ctx.drawImage(imgCarro, carro.x, carro.y, carro.largura, carro.altura);
+
+  if(Math.random() < 0.02) gerarObstaculo();
+
+  obstaculos.forEach((o,i)=>{
+    o.y += velocidade;
+    ctx.drawImage(imgObstaculo,o.x,o.y,o.largura,o.altura);
+
+    if(!o.passou && o.y > carro.y + carro.altura) {
+      pontuacao++;
+      o.passou = true;
+      somPassar.currentTime = 0;
+      somPassar.play();
+    }
+
+    const hitboxCarro = {
+      x: carro.x + carro.largura*0.3,
+      y: carro.y + carro.altura*0.3,
+      largura: carro.largura*0.4,
+      altura: carro.altura*0.4
+    };
+    const hitboxObs = {
+      x: o.x + o.largura*0.25,
+      y: o.y + o.altura*0.25,
+      largura: o.largura*0.5,
+      altura: o.altura*0.5
+    };
+    if(
+      hitboxCarro.x < hitboxObs.x + hitboxObs.largura &&
+      hitboxCarro.x + hitboxCarro.largura > hitboxObs.x &&
+      hitboxCarro.y < hitboxObs.y + hitboxObs.altura &&
+      hitboxCarro.y + hitboxCarro.altura > hitboxObs.y
+    ){
+      somMotor.pause();
+      alert("Você perdeu!");
+      reiniciarJogo();
+    }
+
+    if(o.y > canvas.height) obstaculos.splice(i,1);
+  });
+
+  ctx.fillStyle="#fff";
+  ctx.font="20px Poppins";
+  ctx.fillText("Pontuação: " + pontuacao, 20,30);
+
+  requestAnimationFrame(loop);
+}
+
+function reiniciarJogo(){
+  jogoAtivo = false;
+  document.getElementById("restartBtn").style.display = "inline-block";
+  document.getElementById("startBtn").disabled = false;
+}
+
+// Controles
+window.addEventListener("keydown",(e)=>{
+  if(e.code === "ArrowLeft") carro.velocidadeX = -5;
+  if(e.code === "ArrowRight") carro.velocidadeX = 5;
+});
+window.addEventListener("keyup",(e)=>{
+  if(e.code === "ArrowLeft" || e.code === "ArrowRight") carro.velocidadeX = 0;
+});
+
+document.getElementById("startBtn").addEventListener("click",iniciarJogo);
+document.getElementById("restartBtn").addEventListener("click",iniciarJogo);
+</script>
+</body>
+</html>
